@@ -23,11 +23,11 @@ namespace MBChapters.Saver
         private readonly IHttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly IItemRepository _itemrepositry;
-        
+
         public ChapterSaver(IHttpClient httpClient, ILogger logger, IJsonSerializer json, IItemRepository itemRepositry)
         {
-            _httpClient = httpClient;            
-            _logger = logger;            
+            _httpClient = httpClient;
+            _logger = logger;
             _itemrepositry = itemRepositry;
         }
 
@@ -36,9 +36,8 @@ namespace MBChapters.Saver
         /// </summary>
         /// <param name="item">The item.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
-        /// <param name="result"></param>
         /// <returns>Task.</returns>
-        public async Task DownloadChapterInfoForItem(BaseItem item, CancellationToken cancellationToken)
+        public async Task DownloadChapterInfoForItem(Video item, CancellationToken cancellationToken)
         {
             var url = await GetChapterInfo(item, cancellationToken).ConfigureAwait(false);
 
@@ -49,7 +48,7 @@ namespace MBChapters.Saver
 
             var responseInfo = await _httpClient.GetResponse(new HttpRequestOptions
             {
-                
+
                 Url = url,
                 CancellationToken = cancellationToken,
                 Progress = new Progress<double>(),
@@ -60,23 +59,36 @@ namespace MBChapters.Saver
             }
         }
 
-        private async Task<string> GetChapterInfo(BaseItem item, CancellationToken cancellationToken)
+        private async Task<string> GetChapterInfo(Video video, CancellationToken cancellationToken)
         {
-            var url = await new ChapterDBSearcher3(_logger).Search(item, cancellationToken).ConfigureAwait(false);
+            var defaultVideoStream = video.GetDefaultVideoStream();
+
+            var url = await new ChapterDBSearcher3(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
 
             if (!string.IsNullOrEmpty(url))
             {
-                _logger.Debug("MB CHAPTERS - Found Chapter Info for {0}", item.Name);
+                _logger.Debug("MB CHAPTERS - Found Chapter Info for {0}", video.Name);
             }
 
             //return url;
-            SaveChapterInfo();
-            return null;
-        }
 
-        private void SaveChapterInfo()
-        {
-            throw new NotImplementedException();
+            var chapters = new List<MediaBrowser.Model.Entities.ChapterInfo>();
+
+            chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
+            {
+                Name = "Chapter 1",
+                StartPositionTicks = TimeSpan.FromMinutes(1).Ticks
+            });
+
+            chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
+            {
+                Name = "Chapter 2",
+                StartPositionTicks = TimeSpan.FromMinutes(2).Ticks
+            });
+
+            await _itemrepositry.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+
+            return null;
         }
 
         /// <summary>
@@ -94,6 +106,6 @@ namespace MBChapters.Saver
             return "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.22 Safari/537.36";
         }
 
-        
+
     }
 }

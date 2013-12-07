@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Xml.Linq;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
 using System;
 using System.IO;
@@ -25,17 +26,16 @@ namespace MBChapters.Search
             _logger = logger;
         }
 
-        public Task<string> Search(BaseItem item, CancellationToken cancellationToken)
+        public Task<string> Search(Video video, MediaStream defaultVideoStream, CancellationToken cancellationToken)
         {
-            var videoInfo = item as Video;
-            var fpsFromMedia = videoInfo.DefaultVideoStream.RealFrameRate;
+            var fpsFromMedia = defaultVideoStream.RealFrameRate;
             //var typeFromMedia = RetrieveMediaInfoFromItem(item);            
 
             
             //_logger.Info("the mediatype = {0}", typeFromMedia);
 
             //we need to use escapedUri for search in ChapterDB
-            var movieTitle = Uri.EscapeUriString(item.Name);
+            var movieTitle = Uri.EscapeUriString(video.Name);
 
 
             var url = "{0}/chapters/search?title={1}";
@@ -55,7 +55,7 @@ namespace MBChapters.Search
                 {
                     if (stream != null)
                     {
-                        _logger.Info("MBChapters: ChapterDB has chapters for {0}", item.Name);
+                        _logger.Info("MBChapters: ChapterDB has chapters for {0}", video.Name);
 
                         //Read the response stream
                         using (XmlReader xmlReader = XmlReader.Create(stream))
@@ -68,7 +68,7 @@ namespace MBChapters.Search
                         }
                     
                     }
-                    else _logger.Info("MBChapters: Can't find a match for {0}", item.Name);
+                    else _logger.Info("MBChapters: Can't find a match for {0}", video.Name);
                 }
             }
             return null;
@@ -126,12 +126,10 @@ namespace MBChapters.Search
         //This method I'm still working on to query the xml based on title name match and fps
         //Still need to implement a check for duration (incase it's an extended version as
         //ChapterDB.org doesn't always have Extended in the title and MB scraper doesn't put Extended in the title.
-        public void GetChaptersBasedOnMediaInfo(XDocument xdoc)
+        public void GetChaptersBasedOnMediaInfo(XDocument xdoc, Video video, MediaStream defaultVideoStream)
         {
             ChapterInfo ci = new ChapterInfo();
-            BaseItem item = new Video();
-            var itemsMediaInfo = item as Video;
-            var fpsFromMedia = itemsMediaInfo.DefaultVideoStream.RealFrameRate;
+            var fpsFromMedia = defaultVideoStream.RealFrameRate;
 
             
             var chaptersQuery = from t in xdoc.Descendants(Xns + "chapterInfo")
@@ -159,7 +157,7 @@ namespace MBChapters.Search
             //add the if to catch any null info items, if it is null return it as "unknown".
             if (info != null)
             {
-                return info.IsHd ? bluray : dvd;
+                return info.IsHD ? bluray : dvd;
                 //else
                 //shorthand bool if statement using the ?, if info.IsHd = true, return bluray : else return dvd;
                 //var mediaInfoType = info.IsHd ? bluray : dvd;
