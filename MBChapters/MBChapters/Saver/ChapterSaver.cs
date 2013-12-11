@@ -63,7 +63,7 @@ namespace MBChapters.Saver
         {
             var defaultVideoStream = video.GetDefaultVideoStream();
 
-            var url = await new ChapterDBSearcher3(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
+            var url = await new ChapterDBSearcher(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
 
             if (!string.IsNullOrEmpty(url))
             {
