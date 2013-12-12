@@ -53,28 +53,29 @@ namespace MBChapters.Saver
         private async Task<string> GetChapterInfo(Video video, CancellationToken cancellationToken)
         {
             var defaultVideoStream = video.GetDefaultVideoStream();
-
             var results = await new ChapterDBSearcher(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
 
-            if (results == null)
+            if (results.Count > 3)
+            {
+                var chapters = new List<MediaBrowser.Model.Entities.ChapterInfo>();
+                _logger.Debug("Starting to save chapters now");
+                
+                foreach (var chapterEntry in results)
+                {
+                    chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
+                        {
+                            Name = chapterEntry.Name,
+                            StartPositionTicks = chapterEntry.Time.Ticks
+                        });
+
+                    await _itemrepositry.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+                }
+                _logger.Info("MBCHAPTERS SAVED info for {0}", video.Name.ToUpper());
+            }
+            if(results.Count == 0)
             {
                 _logger.Info("MB CHAPTERS - NO Chapter Info found for {0}", video.Name);
             }
-            
-            var chapters = new List<MediaBrowser.Model.Entities.ChapterInfo>();
-            _logger.Debug("Starting to save chapters now");
-
-            //this is where I need to iterate through the ChapterEntry List and return each name and time to the chapters.Add method.
-            chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
-            {
-               Name = "Chapter 1",
-               StartPositionTicks = TimeSpan.FromMinutes(1).Ticks
-
-            });
-
-            //_logger.Info("MBCHAPTERS SAVER: Chapter Name = {0} || ChapterTime Stamp = {1}");
-
-            await _itemrepositry.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
 
             return null;
         }

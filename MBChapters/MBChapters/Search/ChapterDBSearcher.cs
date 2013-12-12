@@ -19,7 +19,7 @@ namespace MBChapters.Search
         public static string cgUrl = "http://www.Chapterdb.org";
         //Quick reference for chapterDBHeaders = "User-Agent = ChapterGrabber 5.4 || ApiKey = SPEBGSPSEP2KA4D2NTSB || UserName = David.Bryce23";
         public static XNamespace Xns = "http://jvance.com/2008/ChapterGrabber"; //the xml namespace to be used
-        private List<ChapterEntry> chapters; //Somewhere to store our query returns
+        public List<ChapterEntry> chapters; //Somewhere to store our query returns
 
         public ChapterDBSearcher(ILogger logger)
         {
@@ -80,37 +80,52 @@ namespace MBChapters.Search
         {
             //fpsFromMedia is rounded up to a whole integer, Based on FPS from users Video mediaInfo, this creates the best scenario for querying against ChapterDB.org
             var fpsFromMedia = Math.Round(Convert.ToDouble(defaultVideoStream.RealFrameRate), MidpointRounding.AwayFromZero);
-            //typeQuery = result is Blu-ray, DVD or Unknown - ChapterDB's information isn't that accurate where DVD's are actually at 24Hz - WTF!!
+            //typeQuery = result is Blu-ray, DVD or Unknown - ChapterDB's information isn't that accurate for this information so we'll leave it alone.
             var typeQuery = RetrieveMediaInfoFromItem(video);
+            //Runtime needs to be used as MB doesn't allow for extended in the title so we will base our query the runtime being with a 5% tolerance of Video in MB Library
             var runtime = video.RunTimeTicks;
             TimeSpan ts = TimeSpan.FromTicks((long)runtime);// TODO: apply runtime as part of the query with a 5% tolerance on the returned time from ChapterDB.
 
             _logger.Info("Title Query = {1} || FPS = {0} || Type = {2} || Runtime = {3}", fpsFromMedia, video.Name, typeQuery, ts.ToShortString());
 
-            var titleQuery = from t in xdoc.Descendants(Xns + "chapterInfo")
-                             let title = t.Element(Xns + "title") //title Node
-                             where title != null && title.Value == video.Name //Titles must match each other
-                             let fps = t.Element(Xns + "source").Element(Xns + "fps").Value //Source Node
-                             where fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero)
-                             from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")//Chapters Node
-                             let chaptersName = c.Attribute("name").Value //Chapter Name attribute
-                             let chaptersTime = c.Attribute("time").Value //Chapter Time attribute
-                             where chaptersName.Length > 5 //this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
+            var chaptersQuery = (from t in xdoc.Descendants(Xns + "chapterInfo")
+                                let title = t.Element(Xns + "title") //title Node
+                                let srcNode = t.Element(Xns + "source") 
+                                let fpsNode = srcNode.Element(Xns + "fps") //fps Node
+                                let fps = fpsNode.Value //Source Node
+                                where title != null && fpsNode != null
+                                
+                                //Query part based on mediainfo
+                                where title.Value == video.Name &&
+                                fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero)
 
+                             //Once query criteria has been met, get the chapters
+                             from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")
+                             let cName = c.Attribute("name")//Chapters Node
+                             let cTime = c.Attribute("time")//Chapter Name attribute
+                             let chaptersName = cName.Value
+                             let chaptersTime = cTime.Value //Chapter Time attribute
+                                 where chaptersName.Length > 5 && cTime != null //this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
+                             
+                             //Output from Query
                              select new ChapterEntry
                              {
                                  Name = chaptersName,
                                  Time = (TimeSpan.Parse(chaptersTime))
-                             };
+                             }).Distinct(); //Call the Distinct method to prevent duplication of chapter entries(occurs on a few titles for some reason)
 
+            
             //Lets store the query list into memory to access later.
-            chapters = titleQuery.ToList();
+            chapters = chaptersQuery.ToList(); 
 
+            
+            
+            
             //lets prove that the list is not empty
             //TODO: Comment out the foreach loop after I'm happy with the finished product - no need for it clog the log
             foreach (var entry in chapters)
             {
-                _logger.Info("ChapterTime = {0} || ChapterName = {1}", entry.Time.ToShortString(), entry.Name);
+                _logger.Debug("ChapterTime = {0} || ChapterName = {1}", entry.Time.ToShortString(), entry.Name);
             }
             
         }
