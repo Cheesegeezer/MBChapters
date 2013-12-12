@@ -1,11 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Windows.Forms.VisualStyles;
-using System.Xml;
-using System.Xml.Linq;
-using MediaBrowser.Model.Logging;
 
 namespace MBChapters
 {
@@ -22,7 +16,7 @@ namespace MBChapters
         public TimeSpan Duration { get; set; }
         public string ChapterNumber { get; set; }
         public string ChapterName { get; set; }
-        public string ChapterTime { get; set; }
+        public TimeSpan ChapterTime { get; set; }
         
         
         public List<ChapterEntry> Chapters { get; set; }
@@ -48,6 +42,7 @@ namespace MBChapters
         
 
         public static readonly XNamespace Xns = "http://jvance.com/2008/ChapterGrabber"; //the xml namespace to be used
+        
         private static ILogger _logger;
 
         public static ChapterInfo Load(XElement root)
@@ -119,6 +114,5 @@ namespace MBChapters
         }*/
         #endregion
 
-
+        }
     }   
-}

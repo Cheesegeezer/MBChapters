@@ -1,7 +1,5 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Model.Entities;
@@ -19,52 +17,56 @@ namespace MBChapters.Search
     {
         private static ILogger _logger;
         public static string cgUrl = "http://www.Chapterdb.org";
-        //Quick reference for chapterDBHeaders = "User-Agent = ChapterGrabber 5.4/r/nApiKey = SPEBGSPSEP2KA4D2NTSB/r/n UserName = David.Bryce23";
+        //Quick reference for chapterDBHeaders = "User-Agent = ChapterGrabber 5.4 || ApiKey = SPEBGSPSEP2KA4D2NTSB || UserName = David.Bryce23";
         public static XNamespace Xns = "http://jvance.com/2008/ChapterGrabber"; //the xml namespace to be used
-        
+        private List<ChapterEntry> chapters; //Somewhere to store our query returns
+
         public ChapterDBSearcher(ILogger logger)
         {
             _logger = logger;
         }
 
         //Obtain the XML from ChapterDB - Step 1 obtain the data
-        public Task<string> Search(Video video, MediaStream defaultVideoStream, CancellationToken cancellationToken)
+        public async Task<List<ChapterEntry>> Search(Video video, MediaStream defaultVideoStream, CancellationToken cancellationToken)
         {
             //we need to use escapedUri for search in ChapterDB
             var movieTitle = Uri.EscapeUriString(video.Name);
 
-
+            //the search url string
             var url = "{0}/chapters/search?title={1}";
             url = string.Format(url, cgUrl, movieTitle);
 
             //Set ChapterGrabbers HTTP request headers
-            var request = (HttpWebRequest)WebRequest.Create(url);
+            var request = (HttpWebRequest) WebRequest.Create(url);
             request.UserAgent = "ChapterGrabber 5.4";
             request.Headers.Add("ApiKey", "SPEBGSPSEP2KA4D2NTSB");
             request.Headers.Add("UserName", "David.Bryce23");
 
-            using (var response = (HttpWebResponse)request.GetResponse())
+            using (var response = (HttpWebResponse) request.GetResponse())
             {
                 //Get the response stream
                 using (Stream stream = response.GetResponseStream())
                 {
-                    _logger.Info("MBChapters: Connected to ChapterDB.org");
                     //Read the response stream
                     if (stream != null)
+                    {
+                        _logger.Info("MBChapters: Connected to ChapterDB.org");
+
                         using (XmlReader xmlReader = XmlReader.Create(stream))
                         {
-                            _logger.Info(
-                                "MBChapters: Querying ChapterDB based on the MediaInfo contained in {0}", video.Name);
+                            _logger.Info("MBChapters: Querying ChapterDB based on the MediaInfo contained in {0}",
+                                         video.Name);
                             XDocument xDoc = XDocument.Load(xmlReader);
-
-                            //GetAllChapterDBInfo(xDoc);
 
                             QueryChaptersBasedOnMediaInfo(xDoc, video, defaultVideoStream);
                         }
-                    else _logger.Info("MBChapters: Can't find a match for {0}", video.Name);
+
+                    }
+                    else
+                        _logger.Error("MBCHAPTERS: Cannot to connect to ChapterDB.org - please check your internet connection or try again later"); 
                 }
             }
-            return null;
+            return chapters;
         }
 
         /// <summary>
@@ -74,23 +76,23 @@ namespace MBChapters.Search
         /// <param name="defaultVideoStream">defaultVideoStream to be interogated</param>
         /// </summary>
 
-        public IEnumerable<ChapterEntry> QueryChaptersBasedOnMediaInfo(XDocument xdoc, Video video, MediaStream defaultVideoStream)
+        public void QueryChaptersBasedOnMediaInfo(XDocument xdoc, Video video, MediaStream defaultVideoStream)
         {
             //fpsFromMedia is rounded up to a whole integer, Based on FPS from users Video mediaInfo, this creates the best scenario for querying against ChapterDB.org
             var fpsFromMedia = Math.Round(Convert.ToDouble(defaultVideoStream.RealFrameRate), MidpointRounding.AwayFromZero);
             //typeQuery = result is Blu-ray, DVD or Unknown - ChapterDB's information isn't that accurate where DVD's are actually at 24Hz - WTF!!
             var typeQuery = RetrieveMediaInfoFromItem(video);
             var runtime = video.RunTimeTicks;
-            TimeSpan ts = TimeSpan.FromTicks((long) runtime);
+            TimeSpan ts = TimeSpan.FromTicks((long)runtime);// TODO: apply runtime as part of the query with a 5% tolerance on the returned time from ChapterDB.
 
-            _logger.Info("Title Query = {1} || FPS = {0} || Type = {2} || Runtime = {3}", fpsFromMedia, video.Name, typeQuery, ts);
+            _logger.Info("Title Query = {1} || FPS = {0} || Type = {2} || Runtime = {3}", fpsFromMedia, video.Name, typeQuery, ts.ToShortString());
 
             var titleQuery = from t in xdoc.Descendants(Xns + "chapterInfo")
                              let title = t.Element(Xns + "title") //title Node
                              where title != null && title.Value == video.Name //Titles must match each other
                              let fps = t.Element(Xns + "source").Element(Xns + "fps").Value //Source Node
                              where fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero)
-                             from c in xdoc.Descendants(Xns + "chapters").Elements(Xns + "chapter")//Chapters Node
+                             from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")//Chapters Node
                              let chaptersName = c.Attribute("name").Value //Chapter Name attribute
                              let chaptersTime = c.Attribute("time").Value //Chapter Time attribute
                              where chaptersName.Length > 5 //this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
@@ -101,16 +103,19 @@ namespace MBChapters.Search
                                  Time = (TimeSpan.Parse(chaptersTime))
                              };
 
-            var queryChaptersBasedOnMediaInfo = titleQuery as List<ChapterEntry> ?? titleQuery.ToList();
+            //Lets store the query list into memory to access later.
+            chapters = titleQuery.ToList();
 
-            foreach (var entry in queryChaptersBasedOnMediaInfo)
+            //lets prove that the list is not empty
+            //TODO: Comment out the foreach loop after I'm happy with the finished product - no need for it clog the log
+            foreach (var entry in chapters)
             {
                 _logger.Info("ChapterTime = {0} || ChapterName = {1}", entry.Time.ToShortString(), entry.Name);
             }
-
-            return queryChaptersBasedOnMediaInfo; 
-
+            
         }
+
+
 
         #region Test Method to retreive any info from ChapterDB.org
         /// <summary>

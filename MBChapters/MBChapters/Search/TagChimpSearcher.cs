@@ -154,7 +154,7 @@ namespace MBChapters.Search
             {
                 chapters.ChapterNumber = node["chapterNumber"].InnerText;
                 chapters.ChapterName = node["chapterTitle"].InnerText;
-                chapters.ChapterTime = node["chapterTime"].InnerText;
+                //chapters.ChapterTime = node["chapterTime"].InnerText;
 
                 _logger.Info("Chapter No:" + " | " + chapters.ChapterNumber + " | " + chapters.ChapterName + " | " + chapters.ChapterTime);
             }

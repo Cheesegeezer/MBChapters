@@ -1,20 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.IO;
-using MediaBrowser.Controller.Resolvers;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Serialization;
-using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Persistence;
-using MediaBrowser.Controller.Providers;
 using System.Threading;
 using MBChapters.Search;
-using System.IO;
 
 namespace MBChapters.Saver
 {
@@ -54,37 +47,32 @@ namespace MBChapters.Saver
                 Progress = new Progress<double>(),
                 UserAgent = GetUserAgent(url)
             });
-            {
-
-            }
+            
         }
 
         private async Task<string> GetChapterInfo(Video video, CancellationToken cancellationToken)
         {
             var defaultVideoStream = video.GetDefaultVideoStream();
 
-            var url = await new ChapterDBSearcher(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
+            var results = await new ChapterDBSearcher(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
 
-            if (!string.IsNullOrEmpty(url))
+            if (results == null)
             {
-                _logger.Debug("MB CHAPTERS - Found Chapter Info for {0}", video.Name);
+                _logger.Info("MB CHAPTERS - NO Chapter Info found for {0}", video.Name);
             }
-
-            //return url;
-
+            
             var chapters = new List<MediaBrowser.Model.Entities.ChapterInfo>();
+            _logger.Debug("Starting to save chapters now");
 
+            //this is where I need to iterate through the ChapterEntry List and return each name and time to the chapters.Add method.
             chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
             {
-                Name = "Chapter 1",
-                StartPositionTicks = TimeSpan.FromMinutes(1).Ticks
+               Name = "Chapter 1",
+               StartPositionTicks = TimeSpan.FromMinutes(1).Ticks
+
             });
 
-            chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
-            {
-                Name = "Chapter 2",
-                StartPositionTicks = TimeSpan.FromMinutes(2).Ticks
-            });
+            //_logger.Info("MBCHAPTERS SAVER: Chapter Name = {0} || ChapterTime Stamp = {1}");
 
             await _itemrepositry.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
 
