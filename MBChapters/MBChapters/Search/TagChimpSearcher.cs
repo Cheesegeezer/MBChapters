@@ -118,7 +118,7 @@ namespace MBChapters.Search
         //Gets and Checks the title in the xml and if found returns chapter information.
         private void FetchTitleDataFromXmlNode(XmlReader reader, BaseItem item, string url)
         {
-            ChapterInfo chapterInfo = new ChapterInfo();            
+            MBChaptersInfo mbChaptersInfo = new MBChaptersInfo();            
             var movieTitle = Uri.EscapeUriString(item.Name);            
             string titleUrl = string.Format(ChimpMovieTitleSearch, ApiKey, movieTitle);
 
@@ -129,8 +129,8 @@ namespace MBChapters.Search
                         var title = reader.ReadElementContentAsString();
                         if (title == Uri.UnescapeDataString(movieTitle))
                         {
-                            chapterInfo.Title = title;
-                            _logger.Debug("MBCHAPTERS:            TITLE MATCH FOR {0}", chapterInfo.Title);
+                            mbChaptersInfo.Title = title;
+                            _logger.Debug("MBCHAPTERS:            TITLE MATCH FOR {0}", mbChaptersInfo.Title);
                             GetChaptersfromXML(url);
                         }
                         else
@@ -145,18 +145,18 @@ namespace MBChapters.Search
         private string GetChaptersfromXML(string url)
         {
             XmlDocument document = new XmlDocument();
-            ChapterInfo chapters = new ChapterInfo();
+            MBChaptersInfo mbChapterses = new MBChaptersInfo();
             document.Load(url);
             XmlElement root = document.DocumentElement;               
             XmlNodeList cNodes = root.SelectNodes("/items/movie/movieChapters/chapter");                
 
             foreach (XmlNode node in cNodes)
             {
-                chapters.ChapterNumber = node["chapterNumber"].InnerText;
-                chapters.ChapterName = node["chapterTitle"].InnerText;
+                mbChapterses.ChapterNumber = node["chapterNumber"].InnerText;
+                mbChapterses.ChapterName = node["chapterTitle"].InnerText;
                 //chapters.ChapterTime = node["chapterTime"].InnerText;
 
-                _logger.Info("Chapter No:" + " | " + chapters.ChapterNumber + " | " + chapters.ChapterName + " | " + chapters.ChapterTime);
+                _logger.Info("Chapter No:" + " | " + mbChapterses.ChapterNumber + " | " + mbChapterses.ChapterName + " | " + mbChapterses.ChapterTime);
             }
             return null;
         }        

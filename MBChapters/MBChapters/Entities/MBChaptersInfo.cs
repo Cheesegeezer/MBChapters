@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace MBChapters
 {
-    public class ChapterInfo
+    public class MBChaptersInfo
     {
         public string Title { get; set; }
         public int ChapterSetId { get; set; }
@@ -21,7 +21,7 @@ namespace MBChapters
         
         public List<ChapterEntry> Chapters { get; set; }
 
-        public ChapterInfo()
+        public MBChaptersInfo()
         {
 
         }
