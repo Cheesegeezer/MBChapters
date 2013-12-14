@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.IO;
 using MediaBrowser.Model.Logging;
-using MediaBrowser.Model.Serialization;
 using MediaBrowser.Controller.Persistence;
 using System.Threading;
 using MBChapters.Search;
@@ -16,12 +15,14 @@ namespace MBChapters.Saver
         private readonly IHttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly IItemRepository _itemrepositry;
+        private readonly IDirectoryWatchers _directoryWatchers;
 
-        public ChapterSaver(IHttpClient httpClient, ILogger logger, IJsonSerializer json, IItemRepository itemRepositry)
+        public ChapterSaver(IHttpClient httpClient, ILogger logger, IItemRepository itemRepositry, IDirectoryWatchers directoryWatchers)
         {
             _httpClient = httpClient;
             _logger = logger;
             _itemrepositry = itemRepositry;
+            _directoryWatchers = directoryWatchers;
         }
 
         /// <summary>
@@ -30,71 +31,62 @@ namespace MBChapters.Saver
         /// <param name="item">The item.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>Task.</returns>
-        public async Task DownloadChapterInfoForItem(Video item, CancellationToken cancellationToken)
+        
+        public async Task GetChapterInfo(Video video, CancellationToken cancellationToken)
         {
-            var url = await GetChapterInfo(item, cancellationToken).ConfigureAwait(false);
-
-            if (string.IsNullOrEmpty(url))
+            if (!CheckPreviouslyDownloaded(video))
             {
-                return;
-            }
+                var defaultVideoStream = video.GetDefaultVideoStream();
+                var results = await new ChapterDBSearcher(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
 
-            var responseInfo = await _httpClient.GetResponse(new HttpRequestOptions
-            {
-
-                Url = url,
-                CancellationToken = cancellationToken,
-                Progress = new Progress<double>(),
-                UserAgent = GetUserAgent(url)
-            });
-            
-        }
-
-        private async Task<string> GetChapterInfo(Video video, CancellationToken cancellationToken)
-        {
-            var defaultVideoStream = video.GetDefaultVideoStream();
-            var results = await new ChapterDBSearcher(_logger).Search(video, defaultVideoStream, cancellationToken).ConfigureAwait(false);
-
-            if (results.Count > 3)
-            {
-                var chapters = new List<MediaBrowser.Model.Entities.ChapterInfo>();
-                _logger.Debug("Starting to save chapters now");
-                
-                foreach (var chapterEntry in results)
+                //Check the number of items in the list.  Lets make sure we have a decent list so lets make it need to have more than 5 chapters
+                if (results.Count > 5)
                 {
-                    chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
-                        {
-                            Name = chapterEntry.Name,
-                            StartPositionTicks = chapterEntry.Time.Ticks
-                        });
+                    var chapters = new List<MediaBrowser.Model.Entities.ChapterInfo>();
 
-                    await _itemrepositry.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+                    foreach (var chapterEntry in results)
+                    {
+                        chapters.Add(new MediaBrowser.Model.Entities.ChapterInfo
+                            {
+                                
+                                Name = chapterEntry.Name,
+                                StartPositionTicks = chapterEntry.Time.Ticks,                                
+                            });
+
+                        await _itemrepositry.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+                    }
+                    _logger.Info("MBCHAPTERS SAVED info for {0}", video.Name.ToUpper());
+
+                    AddToDownloaded(video);
+                    Plugin.Instance.SaveConfiguration();
                 }
-                _logger.Info("MBCHAPTERS SAVED info for {0}", video.Name.ToUpper());
+                if (results.Count == 0)
+                {
+                    _logger.Info("MB CHAPTERS - NO Chapter Info found for {0}", video.Name.ToUpper());
+                }
             }
-            if(results.Count == 0)
+            else
             {
-                _logger.Info("MB CHAPTERS - NO Chapter Info found for {0}", video.Name);
+                
+                _logger.Info(Plugin.Instance.Name + " - {0} in filter list so will not be downloaded", video.Name);
             }
-
-            return null;
         }
 
-        /// <summary>
-        /// Gets the user agent.
-        /// </summary>
-        /// <param name="url">The URL.</param>
-        /// <returns>System.String.</returns>
-        private string GetUserAgent(string url)
+
+        private static bool CheckPreviouslyDownloaded(BaseItem item)
         {
-            if (url.IndexOf("apple.com", StringComparison.OrdinalIgnoreCase) != -1)
+            List<string> themeitems = Plugin.Instance.Configuration.Chapteritems;
+            if (themeitems.Contains(item.Name))
             {
-                return "QuickTime/7.6.2";
+                return true;
             }
-
-            return "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.22 Safari/537.36";
+            return false;
         }
 
-
+        private void AddToDownloaded(BaseItem item)
+        {
+            List<string> themeitems = Plugin.Instance.Configuration.Chapteritems;
+            themeitems.Add(item.Name);
+        }
     }
 }

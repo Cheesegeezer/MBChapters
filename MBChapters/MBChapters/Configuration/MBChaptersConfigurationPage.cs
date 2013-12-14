@@ -8,7 +8,7 @@ namespace MBChapters.Configuration
     /// <summary>
     /// Class MyConfigurationPage
     /// </summary>
-    class MyConfigurationPage : IPluginConfigurationPage
+    class MBChaptersConfigurationPage : IPluginConfigurationPage
     {
        
         /// <summary>

@@ -8,29 +8,52 @@
 
         <div data-role="content">
             <div class="content-primary">
-                <form id="MBChaptersConfigurationForm">
+                <form id="mbchaptersConfigurationForm">                            
+                            <h2>Filters</h2>
 
-                    <ul class="ulForm" data-role="listview">
-                        <li>
-                            <label for="txtMyOption">
-                                My Option:
-                            </label>
-                            <input id="txtMyOption" name="txtMyOption" />
-                        </li>
-                        <li>
-                            <button type="submit" data-theme="b">Save</button>
+                            <p>Below is a list of chapters that the plugin has downloaded to your collection, by the title being in this list, 
+                                the chapter will not be downloaded again if removed from your media collection.</p> 
+                            <p>Click the - to delete the names of the chapters you would like the plugin to download again.</p>
+                            
+                            <p>Click the + and enter the name of the item as displayed in MBS to prevent future downloads of that Movie</p>
+                    
+                            <div style="display: block; padding: 10px 10px 10px 10px; margin-bottom: 10px" class="ui-bar-e">
+                                 <p><strong>Note:</strong> Ensure you click SAVE at the bottom of the page</p>
+                            </div>
+                    
+                            <button type="button" onclick="MBChaptersConfigurationPage.deleteAllChapteritem(this);">Remove All Filters</button>        
+
+                            <ul id="ulChapteritems" data-role="listview" data-inset="true" data-auto-enhanced="false" data-split-icon="minus"></ul>
+
+                            <button type="submit" data-chapter="b">Save</button>
                             <button type="button" onclick="history.back();">Cancel</button>
-                        </li>
-                    </ul>
 
                 </form>
             </div>
+            
+    <div data-role="popup" id="chapteritemPopup" class="ui-content" style="max-width:90%; min-width: 400px" data-overlay-chapter="a" data-dismissible="false">
+        <h3 style="text-align: center" >New Chapter Filter</h3>
+        <p style="margin-bottom: 20px">
+            Type the Title name, Exactly as it is in your Movie.xml file
+        </p>
+        <form id="chapteritemForm">
+            <label for="chapteritem" >Movie Name</label>
+            <input id="chapteritem" type="text" style="min-width: 90%" required/>
+
+            <button type="submit" data-chapter="b" >Add</button>
+            <button type="button" data-chapter="c" onclick="$('#chapteritemPopup').popup('close')">Cancel</button>
+            
+        </form>
+
+    </div>
+
         </div>
 
         <script type="text/javascript">
 
             var MBChaptersConfigurationPage = {
                 pluginUniqueId: "f1e95b18-b3a4-4154-8162-5039ee29c85d",
+
 
                 selectDirectory: function () {
 
@@ -46,7 +69,95 @@
                         header: "Select Path"
                     });
 
-                }
+                },
+
+                load: function () {
+                    MBChaptersConfigurationPage.populateChapteritemList();
+                },
+
+                populateChapteritemList: function () {
+
+                    var page = $($.mobile.activePage);
+                    var chapteritems = MBChaptersConfigurationPage.config.Chapteritems;
+
+                    var html = "";
+
+                    html += '<li data-role="list-divider" class="mediaLocationsHeader"><h3>Chapter Filters</h3>';
+                    html += '<div data-corners="true" data-shadow="true" data-iconshadow="true" data-wrapperels="span" data-icon="plus" data-iconpos="notext" data-chapter="c" data-inline="true" data-mini="true" title="" class="ui-btn ui-btn-up-c ui-shadow ui-btn-corner-all ui-mini ui-btn-inline ui-btn-icon-notext" aria-disabled="false">';
+                    html += '<span class="ui-btn-inner ui-btn-corner-all"><span class="ui-btn-text"></span>';
+                    html += '<span class="ui-icon ui-icon-plus ui-icon-shadow">&nbsp;</span></span>';
+                    html += '<button type="button" data-icon="plus" data-mini="true" data-chapter="c" data-inline="true" data-iconpos="notext" onclick="MBChaptersConfigurationPage.addChapteritemPopup();" class="ui-btn-hidden" aria-disabled="false"></button></div></li>';
+
+                    if (chapteritems != null) {
+                        for (var i = 0; i < chapteritems.length; i++) {
+
+                            var chapteritem = chapteritems[i];
+
+                            if (chapteritem) {
+
+                                html += "<li>";
+
+                                html += "<a><h3>" + chapteritem + "</h3></a>";
+
+                                html += "<a data-chapteritemname='" + chapteritem + "' onclick='MBChaptersConfigurationPage.deleteChapteritem(this);' href='#'>Delete</a>";
+
+                                html += "</li>";
+                            }
+                        }
+                    }
+                    $('#ulChapteritems', page).html(html).listview('refresh');
+
+                },
+
+                
+
+                deleteChapteritem: function (link) {
+
+                    var name = link.getAttribute('data-chapteritemname');
+
+                    var msg = "Are you sure you wish to delete the " + name + " Chapter? This will prompt downloading again if the media is also removed";
+                    
+                    Dashboard.confirm(msg, "Delete Chapter", function (result) {
+
+                        if (result) {
+
+                            console.log("Deleting Chapter item " + name);
+
+                            MBChaptersConfigurationPage.config.Chapteritems = $.grep(MBChaptersConfigurationPage.config.Chapteritems, function (value) {
+                                return value != name;
+                            });
+
+                            MBChaptersConfigurationPage.populateChapteritemList();
+                        }
+                    });
+                },
+                
+                deleteAllChapteritem: function (link) {
+
+                    var msg = "Are you sure you wish to delete all Chapter Filters? " +
+                              "This will force all chapters to be re-downloaded - REQUIRES A RESTART AFTER COMPLETED";
+
+                    Dashboard.confirm(msg, "Delete All Chapter", function (result) {
+
+                        if (result) {
+
+                            console.log("Deleting All Chapter Filter items ");
+
+                            MBChaptersConfigurationPage.config.Chapteritems = null;
+
+
+                            MBChaptersConfigurationPage.populateChapteritemList();
+                        }
+                    });
+                },
+
+                addChapteritemPopup: function () {
+                    var page = $($.mobile.activePage);
+                    $('#chapteritem', page).val("").focus();
+                    $('#chapteritemPopup', page).popup('open');
+                    $('#chapteritem', page).focus();
+                },
+
             };
 
             $('#MBChaptersConfigurationPage').on('pageshow', function (event) {
@@ -57,21 +168,34 @@
 
                 ApiClient.getPluginConfiguration(MBChaptersConfigurationPage.pluginUniqueId).done(function (config) {
 
-                    $('#txtMyOption', page).val(config.MyOption);
+                    MBChaptersConfigurationPage.config = config;
+
+                    MBChaptersConfigurationPage.load();
 
                     Dashboard.hideLoadingMsg();
                 });
             });
 
-            $('#MBChaptersConfigurationForm').on('submit', function (e) {
+            $('#chapteritemForm').on('submit', function (e) {
+                var page = $($.mobile.activePage);
+                $('#chapteritemPopup', page).popup('close');
+                var form = this;
+                MBChaptersConfigurationPage.config.Chapteritems.push($('#chapteritem', form).val());
+                MBChaptersConfigurationPage.populateChapteritemList();
+                return false;
+            });
+
+            $('#mbchaptersConfigurationForm').on('submit', function (e) {
 
                 Dashboard.showLoadingMsg();
 
-                var form = this;
 
                 ApiClient.getPluginConfiguration(MBChaptersConfigurationPage.pluginUniqueId).done(function (config) {
+                    var page = $($.mobile.activePage);
 
-                    config.FolderName = $('#txtFolderName', form).val();
+                    config.Chapteritems = MBChaptersConfigurationPage.config.Chapteritems;
+                    
+                    
                     ApiClient.updatePluginConfiguration(MBChaptersConfigurationPage.pluginUniqueId, config).done(Dashboard.processPluginConfigurationUpdateResult);
                 });
 

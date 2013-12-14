@@ -1,4 +1,7 @@
 ﻿using MediaBrowser.Model.Plugins;
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace MBChapters.Configuration
 {
@@ -7,6 +10,7 @@ namespace MBChapters.Configuration
     /// </summary>
     public class PluginConfiguration : BasePluginConfiguration
     {
+        public bool ExpiryNotificationSet { get; set; }
         /*
         /// <summary>
         /// My plug-in optin
@@ -21,5 +25,14 @@ namespace MBChapters.Configuration
         {
             MyOption = "some default";
         }*/
+        public List<string> Chapteritems { get; set; }
+
+        public PluginConfiguration()
+            : base()
+        {
+            this.ExpiryNotificationSet = false;
+            this.Chapteritems = new List<string>();
+
+        }
     }
 }

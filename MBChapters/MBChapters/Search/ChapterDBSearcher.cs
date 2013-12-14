@@ -50,12 +50,11 @@ namespace MBChapters.Search
                     //Read the response stream
                     if (stream != null)
                     {
-                        _logger.Info("MBChapters: Connected to ChapterDB.org");
+                        _logger.Debug("MBChapters: Connected to ChapterDB.org");
 
                         using (XmlReader xmlReader = XmlReader.Create(stream))
                         {
-                            _logger.Info("MBChapters: Querying ChapterDB based on the MediaInfo contained in {0}",
-                                         video.Name);
+                            _logger.Info("MBChapters: Querying ChapterDB based on the MediaInfo contained in {0}",video.Name);
                             XDocument xDoc = XDocument.Load(xmlReader);
 
                             QueryChaptersBasedOnMediaInfo(xDoc, video, defaultVideoStream);
@@ -82,25 +81,34 @@ namespace MBChapters.Search
             var fpsFromMedia = Math.Round(Convert.ToDouble(defaultVideoStream.RealFrameRate), MidpointRounding.AwayFromZero);
             //typeQuery = result is Blu-ray, DVD or Unknown - ChapterDB's information isn't that accurate for this information so we'll leave it alone.
             var typeQuery = RetrieveMediaInfoFromItem(video);
+            
             //Runtime needs to be used as MB doesn't allow for extended in the title so we will base our query the runtime being with a 5% tolerance of Video in MB Library
             var runtime = video.RunTimeTicks;
-            TimeSpan ts = TimeSpan.FromTicks((long)runtime);// TODO: apply runtime as part of the query with a 5% tolerance on the returned time from ChapterDB.
+            TimeSpan ts = TimeSpan.FromTicks((long) runtime);
+            TimeSpan percentMinRuntime = TimeSpan.FromTicks((long)(runtime * 0.97));
+            TimeSpan percentMaxRuntime = TimeSpan.FromTicks((long)(runtime * 1.03));
+            
 
-            _logger.Info("Title Query = {1} || FPS = {0} || Type = {2} || Runtime = {3}", fpsFromMedia, video.Name, typeQuery, ts.ToShortString());
+            _logger.Debug("Title Query = {1} || FPS = {0} || Type = {2} || Runtime = {3}", fpsFromMedia, video.Name, typeQuery, ts.ToShortString());
+            _logger.Debug("min Time = {0} || Max Time = {1}", percentMinRuntime, percentMaxRuntime);
 
             var chaptersQuery = (from t in xdoc.Descendants(Xns + "chapterInfo")
                                 let title = t.Element(Xns + "title") //title Node
-                                let srcNode = t.Element(Xns + "source") 
+                                let srcNode = t.Element(Xns + "source") //Source Tree Node
                                 let fpsNode = srcNode.Element(Xns + "fps") //fps Node
-                                let fps = fpsNode.Value //Source Node
+                                let durNode = srcNode.Element(Xns + "duration") //duration Node
+                                let fps = fpsNode.Value 
+                                let durValue = durNode.Value let durTs = TimeSpan.Parse(durValue)
                                 where title != null && fpsNode != null
                                 
-                                //Query part based on mediainfo
+                                //Query part based on mediainfo(Name, FPS & Runtime)
                                 where title.Value == video.Name &&
-                                fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero)
+                                //fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero) &&
+                                durTs < percentMaxRuntime && durTs > percentMinRuntime
 
                              //Once query criteria has been met, get the chapters
                              from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")
+                             let chaps = "chapter"
                              let cName = c.Attribute("name")//Chapters Node
                              let cTime = c.Attribute("time")//Chapter Name attribute
                              let chaptersName = cName.Value
@@ -117,9 +125,6 @@ namespace MBChapters.Search
             
             //Lets store the query list into memory to access later.
             chapters = chaptersQuery.ToList(); 
-
-            
-            
             
             //lets prove that the list is not empty
             //TODO: Comment out the foreach loop after I'm happy with the finished product - no need for it clog the log
@@ -130,7 +135,23 @@ namespace MBChapters.Search
             
         }
 
+        #region Percentage Check for duration
 
+        bool DurationInRange(long runtime, long duration)
+        {
+            return (duration >= (runtime * 0.95) && duration <= (runtime * 1.05));
+        }
+
+        private bool fivePercent(Video video)
+        {
+            var runtime = video.RunTimeTicks;
+            var percentMinRuntime = (runtime * 0.95);
+            var percentMaxRuntime = (runtime * 1.05);
+
+            return (percentMinRuntime < runtime && runtime < percentMaxRuntime);
+        }
+
+        #endregion
 
         #region Test Method to retreive any info from ChapterDB.org
         /// <summary>

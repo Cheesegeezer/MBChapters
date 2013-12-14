@@ -60,8 +60,9 @@
     <Compile Include="ChapterEntry.cs" />
     <Compile Include="ChapterInfo.cs" />
     <Compile Include="Configuration\PluginConfiguration.cs" />
-    <Compile Include="Configuration\MyConfigurationPage.cs" />
+    <Compile Include="Configuration\MBChaptersConfigurationPage.cs" />
     <Compile Include="Entities\MyPluginCollectionFolder.cs" />
+    <Compile Include="EntryPoints\MBChaptersEntryPoint.cs" />
     <Compile Include="Helper.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -69,15 +70,9 @@
     <Compile Include="ScheduledTasks\ChapterDownloadTask.cs" />
     <Compile Include="Search\ChapterDBSearcher.cs" />
     <Compile Include="Search\TagChimpSearcher.cs" />
-    <Compile Include="ServerEntryPoint.cs" />
-    <Compile Include="Testing.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Configuration\configPage.html" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="ReadMe.txt" />
-    <Content Include="TextFile1.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

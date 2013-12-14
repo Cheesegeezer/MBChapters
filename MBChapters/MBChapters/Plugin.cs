@@ -18,6 +18,7 @@ namespace MBChapters
     public class Plugin : BasePlugin<PluginConfiguration>
     {
         public static ILogger Logger { get; set; }
+        public MBRegistrationRecord Registration;
 
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
             : base(applicationPaths, xmlSerializer)
@@ -40,10 +41,7 @@ namespace MBChapters
         /// <value>The description.</value>
         public override string Description
         {
-            get
-            {
-                return "Retrieves Accurate Chapter information for your movies";
-            }
+            get { return "Retrieves Accurate Chapter information for your movies"; }
         }
 
         /// <summary>
@@ -52,23 +50,8 @@ namespace MBChapters
         /// <value>The instance.</value>
         public static Plugin Instance { get; private set; }
 
-        /// <summary>
-        /// Holds our registration information
-        /// </summary>
-        public MBRegistrationRecord Resgistration { get; set; }
-
-        /// <summary>
-        /// Updates the configuration.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        public override void UpdateConfiguration(BasePluginConfiguration configuration)
-        {
-            var oldConfig = Configuration;
-
-            base.UpdateConfiguration(configuration);
-
-            ServerEntryPoint.Instance.OnConfigurationUpdated(oldConfig, (PluginConfiguration)configuration);
-        }
-
     }
 }
+
+    
+
