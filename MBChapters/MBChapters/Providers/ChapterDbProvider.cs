@@ -4,15 +4,20 @@ using System.Linq;
 using System.Net;
 using System.Xml;
 using System.Xml.Linq;
+using MediaBrowser.Common.Security;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Notifications;
 using MediaBrowser.Controller.Persistence;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Model.Notifications;
+using MoreLinq;
 
 namespace MBChapters.Providers
 {
@@ -21,6 +26,9 @@ namespace MBChapters.Providers
     /// </summary>
     class ChapterDbProvider : BaseMetadataProvider
     {
+        private readonly ISecurityManager _securityManager;
+        private readonly INotificationsRepository _notifications;
+        private readonly IUserManager _userManager;
 
         const string cgUrl = "http://www.Chapterdb.org";
         //Quick reference for chapterDBHeaders = "User-Agent = ChapterGrabber 5.4 || ApiKey = SPEBGSPSEP2KA4D2NTSB || UserName = David.Bryce23";
@@ -28,10 +36,13 @@ namespace MBChapters.Providers
 
         protected IItemRepository ItemRepository { get; set; }
 
-        public ChapterDbProvider(ILogManager logManager, IServerConfigurationManager configurationManager, IItemRepository itemRepo)
+        public ChapterDbProvider(ILogManager logManager, IServerConfigurationManager configurationManager, IItemRepository itemRepo, INotificationsRepository notifications, IUserManager userManager, ISecurityManager securityManager)
             : base(logManager, configurationManager)
         {
             ItemRepository = itemRepo;
+            _notifications = notifications;
+            _userManager = userManager;
+            _securityManager = securityManager;
         }
 
         /// <summary>
@@ -63,6 +74,34 @@ namespace MBChapters.Providers
         /// <returns>Task{System.Boolean}.</returns>
         public override async Task<bool> FetchAsync(BaseItem item, bool force, BaseProviderInfo info, CancellationToken cancellationToken)
         {
+            var isSupporter = _securityManager.IsMBSupporter;
+            if (!isSupporter)
+            {
+                //Insert User info to get them to the paypal page.
+                Logger.Info("MBChapters is only available to MB supporters.");
+                return false;
+            }
+
+            if (!Plugin.Instance.Registration.IsRegistered & !Plugin.Instance.Registration.TrialVersion)
+            {
+                Logger.Info(Plugin.Instance.Name + " - Trial Expired, Please register to continue using the plugin");
+
+                foreach (var user in _userManager.Users.ToList())
+                {
+                    await _notifications.AddNotification(new Notification
+                    {
+                        Category = "Plug-in",
+                        Date = DateTime.Now,
+                        Name = "Cheesegeezer's - " + Plugin.Instance.Name + " Plugin",
+                        Description = "Your " + Plugin.Instance.Name + " plugin trial has expired, Please click the More Information link below to register and continue using the plugin",
+                        Url = "addPlugin.html?name=" + Plugin.Instance.Name,
+                        UserId = user.Id,
+                        Level = NotificationLevel.Warning
+                    }, CancellationToken.None).ConfigureAwait(false);
+                }
+                return false;
+            }
+
             var video = item as Video;
             if (video == null)
             {
@@ -75,10 +114,61 @@ namespace MBChapters.Providers
                 throw new ArgumentException(string.Format("No default video stream for item: {0}.  Cannot search for chapters.", item.Name));
             }
 
-            var chapters = await Search(video, stream, cancellationToken).ConfigureAwait(false);
-            if (chapters.Count > 5) // fewer than 5 is probably not useful data
+            if (Plugin.Instance.Registration.TrialVersion)
             {
-                await ItemRepository.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+                string section = item.Name.Substring(0, 1);
+
+                if ("a" == section.ToLower())
+                {
+                    try
+                    {
+                        var chapters = await Search(video, stream, cancellationToken).ConfigureAwait(false);
+                        if (chapters.Count > 5) // fewer than 5 is probably not useful data
+                        {
+                            Logger.Info("MBChapters: Found Chapter info for {0}", video.Name.ToUpper());
+                            await
+                                ItemRepository.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+                        }
+                        if (chapters.Count == 0)
+                        {
+                            Logger.Info("MBChapters: NO CHAPTER INFO FOUND FOR {0}", video.Name.ToUpper());
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.ErrorException("MBChapters - Error downloading Chapters for {0}", ex, item.Name);
+                    }
+                }
+                else
+                {
+                    Logger.Info(Plugin.Instance.Name +
+                                 " - Trial Mode - During the trial, only Movies with the name beginning with the letter 'A' will be downloaded. Please register for all names to be processed");
+                    Logger.Debug(item.Name); 
+                }
+            }
+
+            else if (Plugin.Instance.Registration.IsRegistered)
+            {
+                Logger.Info("{0} (version {1}) | Registration Status - Registered?: {2} | Is in Trial : {3}  | Registration Is Valid : {4} ", Plugin.Instance.Name, Plugin.Instance.Version, Plugin.Instance.Registration.IsRegistered, Plugin.Instance.Registration.TrialVersion, Plugin.Instance.Registration.IsValid);
+
+                try
+                {
+                    var chapters = await Search(video, stream, cancellationToken).ConfigureAwait(false);
+                    if (chapters.Count > 5) // fewer than 5 is probably not useful data
+                    {
+                        Logger.Info("MBChapters: Found Chapter info for {0}", video.Name.ToUpper());
+                        await
+                            ItemRepository.SaveChapters(video.Id, chapters, cancellationToken).ConfigureAwait(false);
+                    }
+                    if (chapters.Count == 0)
+                    {
+                        Logger.Info("MBChapters: NO CHAPTER INFO FOUND FOR {0}", video.Name.ToUpper());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.ErrorException("MBChapters - Error downloading Chapters for {0}", ex, item.Name);
+                }
             }
 
             SetLastRefreshed(item, DateTime.UtcNow, info);
@@ -143,7 +233,7 @@ namespace MBChapters.Providers
             //typeQuery = result is Blu-ray, DVD or Unknown - ChapterDB's information isn't that accurate for this information so we'll leave it alone.
             var typeQuery = RetrieveMediaInfoFromItem(video);
 
-            //Runtime needs to be used as MB doesn't allow for extended in the title so we will base our query the runtime being with a 5% tolerance of Video in MB Library
+            //Runtime needs to be used as MB doesn't allow for extended in the title so we will base our query the runtime being with a 3% tolerance of Video in MB Library
             var runtime = video.RunTimeTicks ?? 0;
             var ts = TimeSpan.FromTicks(runtime);
             var percentMinRuntime = TimeSpan.FromTicks((long)(runtime * 0.97));
@@ -168,25 +258,25 @@ namespace MBChapters.Providers
 
                                  //Query part based on mediainfo(Name, FPS & Runtime)
                                  where title.Value == titleYear1 || title.Value == titleYear2 || title.Value == video.Name &&
-                                     //fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero) &&
-                                durTs < percentMaxRuntime && durTs > percentMinRuntime
+                                 //fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero) &&
+                                 durTs < percentMaxRuntime && durTs > percentMinRuntime
 
                                  //Once query criteria has been met, get the chapters
                                  from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")
                                  let chaps = "chapter"
-                                 let cName = c.Attribute("name")//Chapters Node
-                                 let cTime = c.Attribute("time")//Chapter Name attribute
+                                 let cName = c.Attribute("name")//Chapters Name attribute
+                                 let cTime = c.Attribute("time")//Chapter Time attribute
                                  let chaptersName = cName.Value
                                  let chaptersTime = cTime.Value //Chapter Time attribute
-                                 where chaptersName.Length > 3 && cTime != null && (!chaptersName.Contains("["))//this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
+                                 where chaptersName.Length > 3 && cTime != null && (!chaptersName.Contains("[")) && (!chaptersName.Contains(":"))//this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
 
                                  //Output from Query
                                  select new ChapterInfo
                                  {
                                      Name = chaptersName,
                                      StartPositionTicks = (TimeSpan.Parse(chaptersTime)).Ticks
-                                 }).Distinct() //Call the Distinct method to prevent duplication of chapter entries(occurs on a few titles for some reason)
-                                 .ToList(); 
+                                 }).DistinctBy(s => s.StartPositionTicks) //Call the Distinct method to prevent duplication of chapter entries(occurs on a few titles for some reason)
+                                 .ToList();
         }
 
 

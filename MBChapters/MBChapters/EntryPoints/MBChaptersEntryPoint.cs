@@ -52,8 +52,7 @@ namespace MBChapters.EntryPoints
                                     Category = "Plug-in",
                                     Date = DateTime.Now,
                                     Name = "Cheesegeezer's - " + Plugin.Instance.Name + " Plugin",
-                                    Description = "Your " + Plugin.Instance.Name +
-                                                " plugin trial has expired, Please click the More Information link below to register and continue using the plugin",
+                                    Description = "Your " + Plugin.Instance.Name + " plugin trial has expired, Please click the More Information link below to register and continue using the plugin",
                                     Url = "addPlugin.html?name=" + Plugin.Instance.Name,
                                     UserId = user.Id,
                                     Level = NotificationLevel.Warning
