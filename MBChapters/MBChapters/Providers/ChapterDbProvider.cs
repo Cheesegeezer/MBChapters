@@ -207,7 +207,8 @@ namespace MBChapters.Providers
                         {
                             Logger.Info("MBChapters: Querying ChapterDB based on the MediaInfo contained in {0}", video.Name);
                             var xDoc = XDocument.Load(xmlReader);
-
+                            
+                            //Logger.Debug(xDoc.ToString());
                             return await QueryChaptersBasedOnMediaInfo(xDoc, video, defaultVideoStream).ConfigureAwait(false);
                         }
 
@@ -236,47 +237,49 @@ namespace MBChapters.Providers
             //Runtime needs to be used as MB doesn't allow for extended in the title so we will base our query the runtime being with a 3% tolerance of Video in MB Library
             var runtime = video.RunTimeTicks ?? 0;
             var ts = TimeSpan.FromTicks(runtime);
-            var percentMinRuntime = TimeSpan.FromTicks((long)(runtime * 0.97));
-            var percentMaxRuntime = TimeSpan.FromTicks((long)(runtime * 1.03));
-            var year = video.ProductionYear;
-            var titleYear1 = video.Name + "(" + year + ")" + ".chapters";
-            var titleYear2 = video.Name + "." + year + "_chapters";
+            var percentMinRuntime = TimeSpan.FromTicks((long)(runtime * 0.98));
+            var percentMaxRuntime = TimeSpan.FromTicks((long)(runtime * 1.02));
+            var prodYear = video.ProductionYear;
+            var titleYear1 = video.Name.ToLower() + "(" + prodYear + ")" + ".chapters";
+            var titleYear2 = video.Name.ToLower() + "." + prodYear + "_chapters";
 
             Logger.Debug("MBCHAPTERS: SEARCH CRITERIA ------");
             Logger.Debug("Title Query = {1} || FPS = {0} || Type = {2} || Runtime = {3}", fpsFromMedia, video.Name, typeQuery, ts.ToShortString());
             Logger.Debug("min Time = {0} || Max Time = {1}", percentMinRuntime, percentMaxRuntime);
 
             return (from t in xdoc.Descendants(Xns + "chapterInfo")
-                                 let title = t.Element(Xns + "title") //title Node
-                                 let srcNode = t.Element(Xns + "source") //Source Tree Node
-                                 let fpsNode = srcNode.Element(Xns + "fps") //fps Node
-                                 let durNode = srcNode.Element(Xns + "duration") //duration Node
-                                 let fps = fpsNode.Value
-                                 let durValue = durNode.Value
-                                 let durTs = TimeSpan.Parse(durValue)
-                                 where title != null && fpsNode != null
+                        let title = t.Element(Xns + "title") //title Node
+                        let srcNode = t.Element(Xns + "source") //Source Tree Node
+                        let fpsNode = srcNode.Element(Xns + "fps") //fps Node
+                        let durNode = srcNode.Element(Xns + "duration") //duration Node
+                        let hashNode = srcNode.Element(Xns + "hash")
+                        let fps = fpsNode.Value
+                        let durValue = durNode.Value
+                        let durTs = TimeSpan.Parse(durValue)
+                        where title != null && fpsNode != null
 
-                                 //Query part based on mediainfo(Name, FPS & Runtime)
-                                 where title.Value == titleYear1 || title.Value == titleYear2 || title.Value == video.Name &&
-                                 //fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero) &&
-                                 durTs < percentMaxRuntime && durTs > percentMinRuntime
+                        //Query part based on mediainfo(Name, FPS & Runtime)
+                        where title.Value.RemoveSpecialCharacters().Equals(video.Name.RemoveSpecialCharacters()) &&
+                              //title.Value.ToLower().RemoveChapterTextFromTitle().Equals(video.Name)
+                              //fpsFromMedia == Math.Round(double.Parse(fps), MidpointRounding.AwayFromZero) &&
+                              durTs < percentMaxRuntime && durTs > percentMinRuntime
 
-                                 //Once query criteria has been met, get the chapters
-                                 from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")
-                                 let chaps = "chapter"
-                                 let cName = c.Attribute("name")//Chapters Name attribute
-                                 let cTime = c.Attribute("time")//Chapter Time attribute
-                                 let chaptersName = cName.Value
-                                 let chaptersTime = cTime.Value //Chapter Time attribute
-                                 where chaptersName.Length > 3 && cTime != null && (!chaptersName.Contains("[")) && (!chaptersName.Contains(":"))//this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
-
-                                 //Output from Query
-                                 select new ChapterInfo
-                                 {
-                                     Name = chaptersName,
-                                     StartPositionTicks = (TimeSpan.Parse(chaptersTime)).Ticks
-                                 }).DistinctBy(s => s.StartPositionTicks) //Call the Distinct method to prevent duplication of chapter entries(occurs on a few titles for some reason)
-                                 .ToList();
+                        //Once query criteria has been met, get the chapters
+                        from c in xdoc.Descendants(Xns + "chapters").First().Elements(Xns + "chapter")
+                        let chaps = "chapter"
+                        let cName = c.Attribute("name")//Chapters Name attribute
+                        let cTime = c.Attribute("time")//Chapter Time attribute
+                        let chaptersName = cName.Value
+                        let chaptersTime = cTime.Value //Chapter Time attribute 
+                        where chaptersName.Length > 3 && cTime != null && (!chaptersName.Contains("[")) && (!chaptersName.Contains(":"))//this prevents empty chapter names and chapters with just a number or empty, etc from being included in the results
+                                 
+                        //Output from Query
+                        select new ChapterInfo
+                            {
+                                Name = chaptersName,
+                                StartPositionTicks = (TimeSpan.Parse(chaptersTime)).Ticks 
+                            }).DistinctBy(s => s.StartPositionTicks) //Call the Distinct method to prevent duplication of chapter entries(occurs on a few titles for some reason)
+                    .ToList();
         }
 
 
