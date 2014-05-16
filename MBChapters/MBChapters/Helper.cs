@@ -22,15 +22,11 @@ namespace MBChapters
             str = new string(str.ToCharArray().Where(c => !System.IO.Path.GetInvalidFileNameChars().Contains(c)).ToArray());
 
             //remove url special chars ;/?:@&=+$,()|\^[]'<>#%"
-            str = new string(str.ToCharArray().Where(c => !";:[]/?@&=+$,._()|\\^'<>#%\"".Contains(c)).ToArray()); //:[]
-
-            //normalize and remove non-spacing marks
-            //TODO: is this really necessary?
-            str = str.Normalize(NormalizationForm.FormD);
-            str = new string(str.ToCharArray().Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray());
+            str = new string(str.ToCharArray().Where(c => ";!:[]/?@&=+$,._()|\\^'<>#%\"".Contains(c)).ToArray());
 
             //WCF doesn't support periods and it may throw off IIS6 or other extension mime type issues
             str = str.Replace(".", string.Empty);
+            str = str.Replace(" ", string.Empty);
             return str;
         }
         

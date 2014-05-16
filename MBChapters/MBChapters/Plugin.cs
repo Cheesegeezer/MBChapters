@@ -1,13 +1,7 @@
-﻿using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Linq;
-using MBChapters.Configuration;
+﻿using MBChapters.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
-using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
-using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 
 namespace MBChapters
@@ -18,7 +12,6 @@ namespace MBChapters
     public class Plugin : BasePlugin<PluginConfiguration>
     {
         public static ILogger Logger { get; set; }
-        public MBRegistrationRecord Registration;
 
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
             : base(applicationPaths, xmlSerializer)

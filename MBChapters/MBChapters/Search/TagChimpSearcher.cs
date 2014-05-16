@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using System.IO;
 using System.Xml;
+using MBChapters.Entities;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Model.Logging;
